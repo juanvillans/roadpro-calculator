@@ -142,16 +142,11 @@
   }
 
   /*
-   * Walk the real timeline so labor hours that cross a shift change
-   * (9am / 6pm) get the rate that applies at that moment.
+   * The call out is always billed at the starting rate (135 or 165), never
+   * split. Drive + service run on the real timeline, so their hours that
+   * cross a shift change (9am / 6pm) get the rate of the new shift.
    */
   function computeLabor() {
-    var lines = [
-      { key: "callout", hours: num(el.callout.value) },
-      { key: "drive", hours: num(el.drive.value) },
-      { key: "service", hours: num(el.service.value) }
-    ];
-
     var manual =
       el.rateMode.value === "135" ||
       el.rateMode.value === "165" ||
@@ -161,17 +156,28 @@
       el.rateMode.value === "165" ? AFT_RATE :
       el.holiday.checked ? AFT_RATE : null;
 
-    var cost = { callout: 0, drive: 0, service: 0 };
+    var start = parseWhen();
+    var startRate = manual ? fixed : rateAtDate(start);
+
+    var calloutH = num(el.callout.value);
+    var driveH = num(el.drive.value);
+    var serviceH = num(el.service.value);
+
+    var cost = { callout: calloutH * startRate, drive: 0, service: 0 };
     var segments = [];
-    var d = parseWhen();
+    if (calloutH > 1e-9) {
+      segments.push({ rate: startRate, hours: calloutH });
+    }
+
+    var d = new Date(start.getTime() + calloutH * 3600000);
     var stepH = 1 / 60; /* 1 minute */
 
-    lines.forEach(function (line) {
-      var remaining = line.hours;
+    function walk(hours, key) {
+      var remaining = hours;
       while (remaining > 1e-9) {
         var dt = Math.min(stepH, remaining);
         var r = manual ? fixed : rateAtDate(d);
-        cost[line.key] += r * dt;
+        cost[key] += r * dt;
         var last = segments[segments.length - 1];
         if (last && last.rate === r) {
           last.hours += dt;
@@ -181,13 +187,36 @@
         d = new Date(d.getTime() + dt * 3600000);
         remaining -= dt;
       }
-    });
+    }
+
+    walk(driveH, "drive");
+    walk(serviceH, "service");
+
+    /*
+     * Upfront = call out price. If drive time exceeds 1 hour, add the cost
+     * of the drive time beyond that first hour (protects the mechanic's
+     * time if the customer cancels once the mechanic is on the way).
+     */
+    var upfrontDrive = 0;
+    var excessHours = Math.max(0, driveH - 1);
+    if (excessHours > 1e-9) {
+      var ed = new Date(start.getTime() + (calloutH + 1) * 3600000);
+      var rem = excessHours;
+      while (rem > 1e-9) {
+        var edt = Math.min(stepH, rem);
+        upfrontDrive += (manual ? fixed : rateAtDate(ed)) * edt;
+        ed = new Date(ed.getTime() + edt * 3600000);
+        rem -= edt;
+      }
+    }
 
     return {
       cost: cost,
       segments: segments,
       additionalRate: manual ? fixed : rateAtDate(d),
       manual: manual,
+      startRate: startRate,
+      upfrontDrive: upfrontDrive,
       end: d
     };
   }
@@ -274,7 +303,7 @@
     var fee = el.feeOn.checked ? (subtotal * feeRate) / 100 : 0;
     var tax = el.taxOn.checked ? ((subtotal + fee) * taxRate) / 100 : 0;
     var total = subtotal + fee + tax;
-    var upfront = calloutCost + driveCost;
+    var upfront = calloutCost + laborInfo.upfrontDrive;
 
     el.laborOut.textContent = money(labor);
     el.partsOut.textContent = money(parts.total);
@@ -296,7 +325,7 @@
       partClause + " and the " + fmtHours(serviceH) + " " + hourWord + " of service time.\n" +
       "* Each additional hour: " + money(rate) + "\n" +
       "* Upfront payment required: " + money(upfront) + "\n" +
-      "Estimated arrival time (ETA): " + eta + "\n" +
+      "Estimated arrival time (ETA): " + eta + "\n\n" +
       "If you want to proceed please provide:\n" +
       "1. Your name\n" +
       "2. Company name for the invoice\n" +
