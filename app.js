@@ -186,8 +186,8 @@
     var eta = el.eta.value.trim() || "____";
 
     el.quote.value =
-      "First hour: " + money(total) + ", including call-out/drive time" +
-      partClause + " and the " + fmtHours(serviceH) + " " + hourWord + " of labor.\n" +
+      money(total) + ", including call-out/drive time" +
+      partClause + " and the " + fmtHours(serviceH) + " " + hourWord + " of service time.\n" +
       "* Each additional hour: " + money(rate) + "\n" +
       "* Upfront payment required: " + money(upfront) + "\n" +
       "Estimated arrival time (ETA): " + eta + "\n" +
