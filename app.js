@@ -23,6 +23,8 @@
     taxOn: $("taxOn"),
     taxRate: $("taxRate"),
     laborOut: $("laborOut"),
+    splitRow: $("splitRow"),
+    splitValue: $("splitValue"),
     partsOut: $("partsOut"),
     subtotalOut: $("subtotalOut"),
     feeOut: $("feeOut"),
@@ -115,6 +117,74 @@
       : "Tarifa aplicada: $165/h (noche/finde/feriado)";
   }
 
+  function fmtQty(h) {
+    return String(Math.round(h * 100) / 100);
+  }
+
+  function parseWhen() {
+    var m = (el.when.value || "").match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+    if (!m) return new Date();
+    return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+  }
+
+  function rateAtDate(d) {
+    var day = d.getDay();
+    var t = d.getHours() + d.getMinutes() / 60;
+    var weekend = day === 0 || day === 6;
+    return !weekend && t >= 9 && t < 18 ? REG_RATE : AFT_RATE;
+  }
+
+  /*
+   * Walk the real timeline so labor hours that cross a shift change
+   * (9am / 6pm) get the rate that applies at that moment.
+   */
+  function computeLabor() {
+    var lines = [
+      { key: "callout", hours: num(el.callout.value) },
+      { key: "drive", hours: num(el.drive.value) },
+      { key: "service", hours: num(el.service.value) }
+    ];
+
+    var manual =
+      el.rateMode.value === "135" ||
+      el.rateMode.value === "165" ||
+      el.holiday.checked;
+    var fixed =
+      el.rateMode.value === "135" ? REG_RATE :
+      el.rateMode.value === "165" ? AFT_RATE :
+      el.holiday.checked ? AFT_RATE : null;
+
+    var cost = { callout: 0, drive: 0, service: 0 };
+    var segments = [];
+    var d = parseWhen();
+    var stepH = 1 / 60; /* 1 minute */
+
+    lines.forEach(function (line) {
+      var remaining = line.hours;
+      while (remaining > 1e-9) {
+        var dt = Math.min(stepH, remaining);
+        var r = manual ? fixed : rateAtDate(d);
+        cost[line.key] += r * dt;
+        var last = segments[segments.length - 1];
+        if (last && last.rate === r) {
+          last.hours += dt;
+        } else {
+          segments.push({ rate: r, hours: dt });
+        }
+        d = new Date(d.getTime() + dt * 3600000);
+        remaining -= dt;
+      }
+    });
+
+    return {
+      cost: cost,
+      segments: segments,
+      additionalRate: manual ? fixed : rateAtDate(d),
+      manual: manual,
+      end: d
+    };
+  }
+
   /* ---------- parts ---------- */
 
   function addPartRow(desc, price) {
@@ -155,18 +225,35 @@
   /* ---------- main ---------- */
 
   function update() {
-    var rate = getRate();
-    el.rateBadge.textContent = rateLabel(rate);
+    var startRate = getRate();
+    el.rateBadge.textContent = rateLabel(startRate);
 
     var calloutH = num(el.callout.value);
     var driveH = num(el.drive.value);
     var serviceH = num(el.service.value);
 
-    el.calloutPrice.textContent = money(calloutH * rate);
-    el.drivePrice.textContent = money(driveH * rate);
-    el.servicePrice.textContent = money(serviceH * rate);
+    var laborInfo = computeLabor();
+    var calloutCost = laborInfo.cost.callout;
+    var driveCost = laborInfo.cost.drive;
+    var serviceCost = laborInfo.cost.service;
 
-    var labor = (calloutH + driveH + serviceH) * rate;
+    el.calloutPrice.textContent = money(calloutCost);
+    el.drivePrice.textContent = money(driveCost);
+    el.servicePrice.textContent = money(serviceCost);
+
+    var labor = calloutCost + driveCost + serviceCost;
+
+    if (laborInfo.segments.length > 1) {
+      var segs = laborInfo.segments.map(function (s) {
+        return money(s.rate) + " × " + fmtQty(s.hours) + "h";
+      });
+      el.splitValue.textContent = segs.join("  +  ");
+      el.splitRow.hidden = false;
+    } else {
+      el.splitRow.hidden = true;
+    }
+
+    var rate = laborInfo.additionalRate;
 
     var parts = readParts();
 
@@ -180,7 +267,7 @@
     var fee = el.feeOn.checked ? (subtotal * feeRate) / 100 : 0;
     var tax = el.taxOn.checked ? ((subtotal + fee) * taxRate) / 100 : 0;
     var total = subtotal + fee + tax;
-    var upfront = (calloutH + driveH) * rate;
+    var upfront = calloutCost + driveCost;
 
     el.laborOut.textContent = money(labor);
     el.partsOut.textContent = money(parts.total);
