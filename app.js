@@ -61,6 +61,13 @@
     return (neg ? "-$" : "$") + parts.join(".");
   }
 
+  function moneyInt(n) {
+    var neg = n < 0;
+    var s = Math.round(Math.abs(n)).toString();
+    s = s.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return (neg ? "-$" : "$") + s;
+  }
+
   function fmtHours(h) {
     return Number.isInteger(h) ? String(h) : String(h);
   }
@@ -274,7 +281,7 @@
     el.subtotalOut.textContent = money(subtotal);
     el.feeOut.textContent = money(fee);
     el.taxOut.textContent = money(tax);
-    el.total.textContent = money(total);
+    el.total.textContent = moneyInt(total);
     el.addHour.textContent = money(rate) + "/h";
     el.upfront.textContent = money(upfront);
 
@@ -285,7 +292,7 @@
     var eta = el.eta.value.trim() || "____";
 
     el.quote.value =
-      money(total) + ", including call-out/drive time" +
+      moneyInt(total) + ", including call-out/drive time" +
       partClause + " and the " + fmtHours(serviceH) + " " + hourWord + " of service time.\n" +
       "* Each additional hour: " + money(rate) + "\n" +
       "* Upfront payment required: " + money(upfront) + "\n" +
@@ -305,7 +312,7 @@
 
     el.authMsg.value =
       "Please confirm that you are the authorized person of the company: " +
-      company + " And you approve the amount of " + money(total) +
+      company + " And you approve the amount of " + moneyInt(total) +
       " for the service provided by the Company RoadPro Assistance. Invoice #" +
       invoice + ".  Date " + dateStr + "\n\n" +
       "Service: " + serviceName + "  Please reply YES or NO to confirm";
