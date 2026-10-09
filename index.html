@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RoadPro Assistance - Calculadora</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="app__head">
+      <h1>RoadPro Assistance</h1>
+      <p class="app__sub">Cotizador de servicio</p>
+    </header>
+
+    <div class="layout">
+      <!-- COLUMNA 1 -->
+      <div class="col col--left">
+        <section class="card">
+          <h2>1. Tarifa por hora</h2>
+          <div class="row row--2">
+            <label class="field">
+              <span>Fecha y hora del servicio</span>
+              <input type="datetime-local" id="when" />
+            </label>
+            <label class="field">
+              <span>Tarifa</span>
+              <select id="rateMode">
+                <option value="auto">Automática según día/hora</option>
+                <option value="135">$135 (L-V 9am-6pm)</option>
+                <option value="165">$165 (noche/finde/feriado)</option>
+              </select>
+            </label>
+          </div>
+          <label class="check">
+            <input type="checkbox" id="holiday" />
+            <span>Es feriado (forzar $165)</span>
+          </label>
+          <div class="badge" id="rateBadge">Tarifa aplicada: $135/h</div>
+        </section>
+      </div>
+
+      <!-- COLUMNA 2 -->
+      <div class="col col--right">
+        <!-- MANO DE OBRA -->
+        <section class="card">
+          <h2>2. Mano de obra</h2>
+
+          <div class="line">
+            <label for="callout">Call out (h)</label>
+            <input type="number" id="callout" value="1" min="0" step="0.5" />
+            <output class="price" id="calloutPrice">$0.00</output>
+          </div>
+
+          <div class="line">
+            <label for="drive">Drive time (h)</label>
+            <input type="number" id="drive" value="0" min="0" step="0.5" />
+            <output class="price" id="drivePrice">$0.00</output>
+          </div>
+          <div class="quick">
+            <button type="button" data-target="drive" data-delta="0.5">+0.5h</button>
+            <button type="button" data-target="drive" data-delta="1">+1h</button>
+            <button type="button" data-target="drive" data-delta="-0.5">−0.5h</button>
+          </div>
+
+          <div class="line">
+            <label for="service">Service time (h)</label>
+            <input type="number" id="service" value="1" min="0" step="0.5" />
+            <output class="price" id="servicePrice">$0.00</output>
+          </div>
+          <div class="quick">
+            <button type="button" data-target="service" data-delta="0.5">+0.5h</button>
+            <button type="button" data-target="service" data-delta="1">+1h</button>
+            <button type="button" data-target="service" data-delta="-0.5">−0.5h</button>
+          </div>
+        </section>
+
+        <!-- CARGOS -->
+        <section class="card">
+          <h2>4. Cargos</h2>
+          <div class="line line--check">
+            <label class="check">
+              <input type="checkbox" id="feeOn" checked />
+              <span>Transaction fee</span>
+            </label>
+            <div class="pct">
+              <input type="number" id="feeRate" value="3.8" min="0" step="0.1" />
+              <span>%</span>
+            </div>
+          </div>
+          <div class="line line--check">
+            <label class="check">
+              <input type="checkbox" id="taxOn" />
+              <span>Taxes</span>
+            </label>
+            <div class="pct">
+              <input type="number" id="taxRate" value="9.8" min="0" step="0.1" />
+              <span>%</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- REPUESTOS -->
+        <section class="card">
+          <h2>3. Repuestos</h2>
+          <div id="parts" class="parts"></div>
+          <button type="button" id="addPart" class="btn btn--ghost">+ Agregar repuesto</button>
+          <p class="hint">Al agregar al menos un repuesto se activan los taxes automáticamente.</p>
+        </section>
+
+        <!-- TOTALES -->
+        <section class="card card--total">
+          <h2>Resumen</h2>
+          <div class="bd">
+            <div class="bd__row"><span>Call out + Drive + Service</span><span id="laborOut">$0.00</span></div>
+            <div class="bd__row"><span>Repuestos</span><span id="partsOut">$0.00</span></div>
+            <div class="bd__row bd__row--sub"><span>Subtotal</span><span id="subtotalOut">$0.00</span></div>
+            <div class="bd__row bd__row--fee"><span>Transaction fee</span><span id="feeOut">$0.00</span></div>
+            <div class="bd__row bd__row--tax"><span>Taxes</span><span id="taxOut">$0.00</span></div>
+            <div class="bd__row bd__row--total"><span>TOTAL</span><span id="total">$0.00</span></div>
+          </div>
+          <div class="mini">
+            <div><span>Hora adicional</span><strong id="addHour">$0.00</strong></div>
+            <div><span>Pago por adelantado</span><strong id="upfront">$0.00</strong></div>
+          </div>
+        </section>
+
+        <!-- MENSAJE -->
+        <section class="card card--wide">
+          <h2>5. Mensaje para el cliente</h2>
+          <label class="field">
+            <span>ETA</span>
+            <input type="text" id="eta" placeholder="Ej: 45 min / 3:30 PM" />
+          </label>
+          <textarea id="quote" class="quote" readonly rows="12"></textarea>
+          <button type="button" id="copy" class="btn btn--primary">Copiar mensaje</button>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
