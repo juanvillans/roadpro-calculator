@@ -135,6 +135,31 @@
           <textarea id="quote" class="quote" readonly rows="12"></textarea>
           <button type="button" id="copy" class="btn btn--primary">Copiar mensaje</button>
         </section>
+
+        <!-- CONFIRMACION -->
+        <section class="card card--wide">
+          <h2>6. Confirmación del cliente</h2>
+          <div class="row row--pair">
+            <label class="field">
+              <span>Empresa del cliente</span>
+              <input type="text" id="authCompany" placeholder="Ej: GI Logistics" />
+            </label>
+            <label class="field">
+              <span>Invoice #</span>
+              <input type="text" id="authInvoice" placeholder="Ej: 1198" />
+            </label>
+          </div>
+          <label class="field">
+            <span>Servicio</span>
+            <input type="text" id="authService" placeholder="Ej: Coolant leak fix on unit #4097" />
+          </label>
+          <label class="field">
+            <span>Fecha</span>
+            <input type="date" id="authDate" />
+          </label>
+          <textarea id="authMsg" class="quote" readonly rows="7"></textarea>
+          <button type="button" id="copyAuth" class="btn btn--primary">Copiar confirmación</button>
+        </section>
       </div>
     </div>
   </main>

@@ -83,6 +83,10 @@ body {
   .col--right .card--wide {
     column-span: none;
   }
+
+  .row--pair {
+    grid-template-columns: 1fr;
+  }
 }
 
 .app__head h1 {
@@ -122,6 +126,10 @@ body {
 
 .row--2 {
   grid-template-columns: 1fr;
+}
+
+.row--pair {
+  grid-template-columns: 1fr 1fr;
 }
 
 .field {

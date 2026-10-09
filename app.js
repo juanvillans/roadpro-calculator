@@ -32,7 +32,13 @@
     upfront: $("upfront"),
     eta: $("eta"),
     quote: $("quote"),
-    copy: $("copy")
+    copy: $("copy"),
+    authCompany: $("authCompany"),
+    authInvoice: $("authInvoice"),
+    authService: $("authService"),
+    authDate: $("authDate"),
+    authMsg: $("authMsg"),
+    copyAuth: $("copyAuth")
   };
 
   var REG_RATE = 135;
@@ -66,6 +72,12 @@
       d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) +
       "T" + pad(d.getHours()) + ":" + pad(d.getMinutes())
     );
+  }
+
+  /* value from <input type="date"> (YYYY-MM-DD) -> MM/DD/YYYY */
+  function usDate(value) {
+    var m = (value || "").match(/(\d{4})-(\d{2})-(\d{2})/);
+    return m ? m[2] + "/" + m[3] + "/" + m[1] : "";
   }
 
   /* The picked value is read as local time (naive components). */
@@ -198,14 +210,28 @@
       "4. Unit/Truck number\n" +
       "5. Name and phone number of the person responsible for payment\n" +
       "6. Payment method";
+
+    var company = el.authCompany.value.trim() || "____";
+    var invoice = el.authInvoice.value.trim() || "____";
+    var serviceName = el.authService.value.trim() || "____";
+    var dateStr = usDate(el.authDate.value);
+
+    el.authMsg.value =
+      "Please confirm that you are the authorized person of the company: " +
+      company + " And you approve the amount of " + money(total) +
+      " for the service provided by the Company RoadPro Assistance. Invoice #" +
+      invoice + ".  Date " + dateStr + "\n\n" +
+      "Service: " + serviceName + "  Please reply YES or NO to confirm";
   }
 
   /* ---------- events ---------- */
 
   el.when.value = toLocalInput(new Date());
+  el.authDate.value = toLocalInput(new Date()).slice(0, 10);
 
   ["when", "rateMode", "holiday", "callout", "drive", "service",
-   "feeOn", "feeRate", "taxOn", "taxRate", "eta"].forEach(function (key) {
+   "feeOn", "feeRate", "taxOn", "taxRate", "eta",
+   "authCompany", "authInvoice", "authService", "authDate"].forEach(function (key) {
     el[key].addEventListener("input", update);
     el[key].addEventListener("change", update);
   });
@@ -225,27 +251,32 @@
     });
   });
 
-  el.copy.addEventListener("click", function () {
-    var text = el.quote.value;
-    var done = function () {
-      var old = el.copy.textContent;
-      el.copy.textContent = "¡Copiado!";
-      setTimeout(function () {
-        el.copy.textContent = old;
-      }, 1200);
-    };
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(done, function () {
-        el.quote.select();
+  function bindCopy(btn, textarea) {
+    btn.addEventListener("click", function () {
+      var text = textarea.value;
+      var done = function () {
+        var old = btn.textContent;
+        btn.textContent = "¡Copiado!";
+        setTimeout(function () {
+          btn.textContent = old;
+        }, 1200);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, function () {
+          textarea.select();
+          document.execCommand("copy");
+          done();
+        });
+      } else {
+        textarea.select();
         document.execCommand("copy");
         done();
-      });
-    } else {
-      el.quote.select();
-      document.execCommand("copy");
-      done();
-    }
-  });
+      }
+    });
+  }
+
+  bindCopy(el.copy, el.quote);
+  bindCopy(el.copyAuth, el.authMsg);
 
   update();
 })();
