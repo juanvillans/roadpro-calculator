@@ -18,6 +18,7 @@
     servicePrice: $("servicePrice"),
     parts: $("parts"),
     addPart: $("addPart"),
+    invStatus: $("invStatus"),
     feeOn: $("feeOn"),
     feeRate: $("feeRate"),
     taxOn: $("taxOn"),
@@ -128,6 +129,16 @@
     return String(Math.round(h * 100) / 100);
   }
 
+  function normalize(s) {
+    return String(s || "").toLowerCase().replace(/\s+/g, "");
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
   function parseWhen() {
     var m = (el.when.value || "").match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
     if (!m) return new Date();
@@ -221,29 +232,260 @@
     };
   }
 
+  /* ---------- inventory (live from Google Sheets) ---------- */
+
+  var INVENTORY_URL =
+    "https://docs.google.com/spreadsheets/d/" +
+    "1s-gCFjMKWpOlRzAJwmXl2vp6xjJWNqzrKwTEvvhOVxk/export?format=csv&gid=0";
+  var INVENTORY_KEY = "roadpro_inventory_v1";
+  var INVENTORY_LIMIT = 10;
+  var inventory = [];
+
+  function parseCSV(text) {
+    var rows = [];
+    var row = [];
+    var field = "";
+    var inQuotes = false;
+    for (var i = 0; i < text.length; i++) {
+      var ch = text[i];
+      if (inQuotes) {
+        if (ch === '"') {
+          if (text[i + 1] === '"') { field += '"'; i++; }
+          else inQuotes = false;
+        } else {
+          field += ch;
+        }
+      } else if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === ",") {
+        row.push(field);
+        field = "";
+      } else if (ch === "\n") {
+        row.push(field);
+        rows.push(row);
+        row = [];
+        field = "";
+      } else if (ch !== "\r") {
+        field += ch;
+      }
+    }
+    if (field !== "" || row.length) { row.push(field); rows.push(row); }
+    return rows;
+  }
+
+  function toNumber(s) {
+    var cleaned = String(s == null ? "" : s).replace(/[^0-9.\-]/g, "");
+    return cleaned === "" || cleaned === "-" ? NaN : parseFloat(cleaned);
+  }
+
+  function buildInventory(rows) {
+    var items = [];
+    var section = "";
+    for (var i = 0; i < rows.length; i++) {
+      var c = rows[i];
+      var col0 = (c[0] || "").trim();
+      var nombre = (c[1] || "").trim();
+      if (col0 && !nombre) { section = col0; continue; } /* section row */
+      if (!nombre) continue;
+      var precio = toNumber(c[8]); /* Precio Cliente */
+      if (isNaN(precio)) continue;
+      items.push({
+        seccion: section,
+        nombre: nombre,
+        marca: (c[4] || "").trim(),
+        tipo: (c[5] || "").trim(),
+        nota: (c[6] || "").trim(),
+        estado: (c[10] || "").trim(),
+        precio: precio
+      });
+    }
+    return items;
+  }
+
+  function setInventoryStatus(state, count) {
+    if (!el.invStatus) return;
+    if (state === "ok") {
+      el.invStatus.textContent = "Inventario: " + count + " repuestos disponibles";
+      el.invStatus.className = "hint inv-status inv-status--ok";
+    } else if (state === "local") {
+      el.invStatus.textContent = "Inventario: " + count + " repuestos (copia local)";
+      el.invStatus.className = "hint inv-status inv-status--ok";
+    } else if (state === "off") {
+      el.invStatus.textContent = "Inventario no disponible — entrada manual";
+      el.invStatus.className = "hint inv-status inv-status--off";
+    } else {
+      el.invStatus.textContent = "Cargando inventario…";
+      el.invStatus.className = "hint inv-status";
+    }
+  }
+
+  function loadInventory() {
+    setInventoryStatus("loading");
+
+    var cached = null;
+    try {
+      cached = JSON.parse(localStorage.getItem(INVENTORY_KEY) || "null");
+    } catch (e) {}
+
+    if (cached && cached.items && cached.items.length) {
+      inventory = cached.items;
+      setInventoryStatus("ok", inventory.length);
+    } else if (window.ROADPRO_INVENTORY_CSV) {
+      var seeded = buildInventory(parseCSV(window.ROADPRO_INVENTORY_CSV));
+      if (seeded.length) {
+        inventory = seeded;
+        setInventoryStatus("local", inventory.length);
+      }
+    }
+
+    fetch(INVENTORY_URL)
+      .then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.text();
+      })
+      .then(function (text) {
+        var items = buildInventory(parseCSV(text));
+        if (!items.length) throw new Error("empty");
+        inventory = items;
+        setInventoryStatus("ok", inventory.length);
+        try {
+          localStorage.setItem(
+            INVENTORY_KEY,
+            JSON.stringify({ at: Date.now(), items: items })
+          );
+        } catch (e) {}
+      })
+      .catch(function () {
+        if (!inventory.length) setInventoryStatus("off");
+      });
+  }
+
+  function searchInventory(query) {
+    var q = normalize(query);
+    if (!q) return [];
+    var nameHits = [];
+    var otherHits = [];
+    for (var i = 0; i < inventory.length; i++) {
+      var it = inventory[i];
+      var n = normalize(it.nombre);
+      var hay = n + normalize(it.marca + it.tipo + it.nota + it.seccion + it.estado);
+      if (n.indexOf(q) !== -1) nameHits.push(it);
+      else if (hay.indexOf(q) !== -1) otherHits.push(it);
+    }
+    return nameHits.concat(otherHits).slice(0, INVENTORY_LIMIT);
+  }
+
   /* ---------- parts ---------- */
+
+  function attachCombobox(wrap, descInput, priceInput) {
+    var box = wrap.querySelector(".suggest");
+    var matches = [];
+    var active = -1;
+
+    function close() {
+      box.hidden = true;
+      box.innerHTML = "";
+      matches = [];
+      active = -1;
+    }
+
+    function highlight() {
+      var items = box.querySelectorAll(".suggest__item");
+      for (var i = 0; i < items.length; i++) {
+        items[i].classList.toggle("is-active", i === active);
+      }
+      if (active >= 0 && items[active]) items[active].scrollIntoView({ block: "nearest" });
+    }
+
+    function choose(idx) {
+      var it = matches[idx];
+      if (!it) return;
+      descInput.value = [it.nombre, it.tipo, it.marca].filter(Boolean).join(" ");
+      priceInput.value = it.precio.toFixed(2);
+      close();
+      update();
+      descInput.focus();
+    }
+
+    function open() {
+      if (!inventory.length) { close(); return; }
+      matches = searchInventory(descInput.value);
+      active = -1;
+      if (!matches.length) { close(); return; }
+      box.innerHTML = matches.map(function (it, idx) {
+        var meta = [it.tipo, it.marca, it.estado].filter(Boolean).join(" · ");
+        return (
+          '<button type="button" class="suggest__item" data-idx="' + idx + '">' +
+          '<span class="suggest__name">' + escapeHtml(it.nombre) + "</span>" +
+          '<span class="suggest__meta">' + escapeHtml(meta) + "</span>" +
+          '<span class="suggest__price">' + money(it.precio) + "</span>" +
+          "</button>"
+        );
+      }).join("");
+      box.hidden = false;
+    }
+
+    descInput.addEventListener("focus", open);
+    descInput.addEventListener("input", open);
+    descInput.addEventListener("keydown", function (e) {
+      if (box.hidden) return;
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        active = active + 1 >= matches.length ? 0 : active + 1;
+        highlight();
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        active = active - 1 < 0 ? matches.length - 1 : active - 1;
+        highlight();
+      } else if (e.key === "Enter" && matches.length) {
+        e.preventDefault();
+        choose(active >= 0 ? active : 0);
+      } else if (e.key === "Escape") {
+        close();
+      }
+    });
+    box.addEventListener("mousedown", function (e) {
+      var item = e.target.closest ? e.target.closest(".suggest__item") : null;
+      if (item) {
+        e.preventDefault();
+        choose(parseInt(item.getAttribute("data-idx"), 10));
+      }
+    });
+    descInput.addEventListener("blur", function () {
+      setTimeout(close, 150);
+    });
+  }
 
   function addPartRow(desc, price) {
     var row = document.createElement("div");
     row.className = "part-row";
     row.innerHTML =
-      '<input type="text" class="part-desc" placeholder="Descripción (ej. caucho)" />' +
-      '<input type="number" class="part-price" min="0" step="0.01" placeholder="0.00" />' +
+      '<div class="part-combo">' +
+      '<input type="text" class="part-desc" name="part-desc" autocomplete="off" ' +
+      'placeholder="Busca un repuesto o escribe…" />' +
+      '<div class="suggest" hidden></div>' +
+      "</div>" +
+      '<input type="number" class="part-price" name="part-price" min="0" step="0.01" placeholder="0.00" />' +
       '<button type="button" class="del" title="Eliminar">&times;</button>';
 
-    row.querySelector(".part-desc").value = desc || "";
-    row.querySelector(".part-price").value = price || "";
-    row.querySelector(".part-desc").addEventListener("input", update);
-    row.querySelector(".part-price").addEventListener("input", update);
+    var combo = row.querySelector(".part-combo");
+    var descInput = row.querySelector(".part-desc");
+    var priceInput = row.querySelector(".part-price");
+
+    descInput.value = desc || "";
+    priceInput.value = price || "";
+    descInput.addEventListener("input", update);
+    priceInput.addEventListener("input", update);
     row.querySelector(".del").addEventListener("click", function () {
       row.remove();
       update();
     });
+    attachCombobox(combo, descInput, priceInput);
 
     el.parts.appendChild(row);
-    var input = row.querySelector(".part-desc");
-    if (input) input.focus();
+    descInput.focus();
   }
+
 
   function readParts() {
     var rows = el.parts.querySelectorAll(".part-row");
@@ -401,5 +643,6 @@
   bindCopy(el.copy, el.quote);
   bindCopy(el.copyAuth, el.authMsg);
 
+  loadInventory();
   update();
 })();
