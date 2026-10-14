@@ -141,6 +141,32 @@ body {
   margin-bottom: 8px;
 }
 
+.when-row {
+  display: flex;
+  gap: 8px;
+}
+
+.when-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.now-btn {
+  flex: none;
+  background: var(--key);
+  border: none;
+  color: var(--accent-2);
+  border-radius: 10px;
+  padding: 0 14px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.now-btn:hover {
+  background: var(--key-hover);
+}
+
 input,
 select,
 textarea,
@@ -206,7 +232,8 @@ textarea:focus {
   margin-bottom: 8px;
 }
 
-.line > label {
+.line > label,
+.line-label {
   font-size: 0.95rem;
 }
 
@@ -224,6 +251,10 @@ textarea:focus {
 .line--check {
   grid-template-columns: 1fr auto;
   margin-top: 6px;
+}
+
+.line--fixed {
+  grid-template-columns: 1fr auto;
 }
 
 .line--check .pct {

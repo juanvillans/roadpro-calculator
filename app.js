@@ -7,10 +7,10 @@
 
   var el = {
     when: $("when"),
+    nowBtn: $("nowBtn"),
     rateMode: $("rateMode"),
     holiday: $("holiday"),
     rateBadge: $("rateBadge"),
-    callout: $("callout"),
     drive: $("drive"),
     service: $("service"),
     calloutPrice: $("calloutPrice"),
@@ -153,9 +153,9 @@
   }
 
   /*
-   * The call out is always billed at the starting rate (135 or 165), never
-   * split. Drive + service run on the real timeline, so their hours that
-   * cross a shift change (9am / 6pm) get the rate of the new shift.
+   * Call out is a fixed fee (one hour's rate) and does NOT consume clock
+   * time. Drive runs on the real timeline first, then service follows, so
+   * hours that cross a shift change (9am / 6pm) get the rate of the new shift.
    */
   function computeLabor() {
     var manual =
@@ -170,17 +170,13 @@
     var start = parseWhen();
     var startRate = manual ? fixed : rateAtDate(start);
 
-    var calloutH = num(el.callout.value);
     var driveH = num(el.drive.value);
     var serviceH = num(el.service.value);
 
-    var cost = { callout: calloutH * startRate, drive: 0, service: 0 };
-    var segments = [];
-    if (calloutH > 1e-9) {
-      segments.push({ rate: startRate, hours: calloutH });
-    }
+    var cost = { callout: startRate, drive: 0, service: 0 };
+    var segments = [{ rate: startRate, hours: 1 }];
 
-    var d = new Date(start.getTime() + calloutH * 3600000);
+    var d = new Date(start.getTime());
     var stepH = 1 / 60; /* 1 minute */
 
     function walk(hours, key) {
@@ -204,14 +200,13 @@
     walk(serviceH, "service");
 
     /*
-     * Upfront = call out price. If drive time exceeds 1 hour, add the cost
-     * of the drive time beyond that first hour (protects the mechanic's
-     * time if the customer cancels once the mechanic is on the way).
+     * Upfront = fixed call out. If drive time exceeds 1 hour, add the drive
+     * time beyond that first hour (the call out already covers the first one).
      */
     var upfrontDrive = 0;
     var excessHours = Math.max(0, driveH - 1);
     if (excessHours > 1e-9) {
-      var ed = new Date(start.getTime() + (calloutH + 1) * 3600000);
+      var ed = new Date(start.getTime() + 1 * 3600000);
       var rem = excessHours;
       while (rem > 1e-9) {
         var edt = Math.min(stepH, rem);
@@ -506,7 +501,6 @@
     var startRate = getRate();
     el.rateBadge.textContent = rateLabel(startRate);
 
-    var calloutH = num(el.callout.value);
     var driveH = num(el.drive.value);
     var serviceH = num(el.service.value);
 
@@ -591,14 +585,43 @@
 
   /* ---------- events ---------- */
 
-  el.when.value = toLocalInput(new Date());
+  var whenAuto = true;
+
+  function setWhenNow() {
+    el.when.value = toLocalInput(new Date());
+  }
+
+  setWhenNow();
   el.authDate.value = toLocalInput(new Date()).slice(0, 10);
 
-  ["when", "rateMode", "holiday", "callout", "drive", "service",
+  ["when", "rateMode", "holiday", "drive", "service",
    "feeOn", "feeRate", "taxOn", "taxRate", "eta",
    "authCompany", "authInvoice", "authService", "authDate"].forEach(function (key) {
     el[key].addEventListener("input", update);
     el[key].addEventListener("change", update);
+  });
+
+  /* Keep the service time on "now" until the user edits it manually. */
+  el.when.addEventListener("input", function () { whenAuto = false; });
+  el.when.addEventListener("change", function () { whenAuto = false; });
+
+  el.nowBtn.addEventListener("click", function () {
+    whenAuto = true;
+    setWhenNow();
+    update();
+  });
+
+  function syncNow() {
+    if (whenAuto) {
+      setWhenNow();
+      update();
+    }
+  }
+
+  setInterval(syncNow, 30000);
+  window.addEventListener("focus", syncNow);
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden) syncNow();
   });
 
   el.addPart.addEventListener("click", function () {
