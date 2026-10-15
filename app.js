@@ -31,7 +31,6 @@
     total: $("total"),
     addHour: $("addHour"),
     upfront: $("upfront"),
-    eta: $("eta"),
     quote: $("quote"),
     copy: $("copy"),
     authCompany: $("authCompany"),
@@ -65,10 +64,6 @@
     var s = Math.round(Math.abs(n)).toString();
     s = s.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
     return (neg ? "-$" : "$") + s;
-  }
-
-  function fmtHours(h) {
-    return Number.isInteger(h) ? String(h) : String(h);
   }
 
   function pad(n) {
@@ -455,9 +450,6 @@
     var startRate = getRate();
     el.rateBadge.textContent = rateLabel(startRate);
 
-    var driveH = num(el.drive.value);
-    var serviceH = num(el.service.value);
-
     var laborInfo = computeLabor();
     var calloutCost = laborInfo.cost.callout;
     var driveCost = laborInfo.cost.drive;
@@ -494,18 +486,27 @@
     el.addHour.textContent = money(rate) + "/h";
     el.upfront.textContent = money(upfront);
 
-    var partClause = parts.descs.length
-      ? ", parts (" + parts.descs.join(", ") + ")"
-      : "";
-    var hourWord = serviceH === 1 ? "hour" : "hours";
-    var eta = el.eta.value.trim() || "____";
+    var estimate = total - fee; /* labor + parts + taxes, without the card fee */
+    var coversClause =
+      parts.count > 0
+        ? "covers call out, drive time, the first hour of service and parts."
+        : "covers call out, drive time and the first hour of service (no parts included).";
+    var otherRate = rate === REG_RATE ? AFT_RATE : REG_RATE;
+    var otherNote = rate === REG_RATE
+      ? "after 6pm and before 9am: " + moneyInt(otherRate) + "/hr"
+      : "Mon-Fri 9am-6pm: " + moneyInt(otherRate) + "/hr";
 
     el.quote.value =
-      moneyInt(total) + ", including call-out/drive time" +
-      partClause + " and the " + fmtHours(serviceH) + " " + hourWord + " of service time.\n" +
-      "* Each additional hour: " + money(rate) + "\n" +
-      "* Upfront payment required: " + money(upfront) + "\n" +
-      "Estimated arrival time (ETA): " + eta + "\n\n" +
+      "Estimated total: " + moneyInt(estimate) + " — " + coversClause + "\n" +
+      "- Additional time beyond the first hour: " + moneyInt(rate) +
+      "/hr (" + otherNote + "). I'll call you for approval before any extra time or parts are added.\n" +
+      "- Call out: " + moneyInt(calloutCost) +
+      " collected before the tech leaves — it's part of the " + moneyInt(estimate) +
+      ", not on top of it. Remaining balance at the end: " +
+      moneyInt(estimate - calloutCost) + ".\n" +
+      "- Card or debit adds a " + feeRate +
+      "% transaction fee (Zelle, COM Check, EFS or cash: no fee).\n" +
+      "- If you cancel after confirming, the call out is non-refundable.\n\n" +
       "If you want to proceed please provide:\n" +
       "1. Your name\n" +
       "2. Company name for the invoice\n" +
@@ -539,7 +540,7 @@
   el.authDate.value = toLocalInput(new Date()).slice(0, 10);
 
   ["when", "rateMode", "holiday", "drive", "service",
-   "feeOn", "feeRate", "taxOn", "taxRate", "eta",
+   "feeOn", "feeRate", "taxOn", "taxRate",
    "authCompany", "authInvoice", "authService", "authDate"].forEach(function (key) {
     el[key].addEventListener("input", update);
     el[key].addEventListener("change", update);
