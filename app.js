@@ -24,8 +24,6 @@
     taxOn: $("taxOn"),
     taxRate: $("taxRate"),
     laborOut: $("laborOut"),
-    splitRow: $("splitRow"),
-    splitValue: $("splitValue"),
     partsOut: $("partsOut"),
     subtotalOut: $("subtotalOut"),
     feeOut: $("feeOut"),
@@ -125,10 +123,6 @@
       : "Tarifa aplicada: $165/h (noche/finde/feriado)";
   }
 
-  function fmtQty(h) {
-    return String(Math.round(h * 100) / 100);
-  }
-
   function normalize(s) {
     return String(s || "").toLowerCase().replace(/\s+/g, "");
   }
@@ -153,9 +147,9 @@
   }
 
   /*
-   * Call out is a fixed fee (one hour's rate) and does NOT consume clock
-   * time. Drive runs on the real timeline first, then service follows, so
-   * hours that cross a shift change (9am / 6pm) get the rate of the new shift.
+   * Single rate for the whole job, chosen by the service time:
+   * $135 Mon-Fri 9:00-18:00, otherwise $165. No split.
+   * Call out is a fixed fee (one hour's rate) and does not consume time.
    */
   function computeLabor() {
     var manual =
@@ -167,63 +161,23 @@
       el.rateMode.value === "165" ? AFT_RATE :
       el.holiday.checked ? AFT_RATE : null;
 
-    var start = parseWhen();
-    var startRate = manual ? fixed : rateAtDate(start);
+    var rate = manual ? fixed : rateAtDate(parseWhen());
 
     var driveH = num(el.drive.value);
     var serviceH = num(el.service.value);
 
-    var cost = { callout: startRate, drive: 0, service: 0 };
-    var segments = [{ rate: startRate, hours: 1 }];
-
-    var d = new Date(start.getTime());
-    var stepH = 1 / 60; /* 1 minute */
-
-    function walk(hours, key) {
-      var remaining = hours;
-      while (remaining > 1e-9) {
-        var dt = Math.min(stepH, remaining);
-        var r = manual ? fixed : rateAtDate(d);
-        cost[key] += r * dt;
-        var last = segments[segments.length - 1];
-        if (last && last.rate === r) {
-          last.hours += dt;
-        } else {
-          segments.push({ rate: r, hours: dt });
-        }
-        d = new Date(d.getTime() + dt * 3600000);
-        remaining -= dt;
-      }
-    }
-
-    walk(driveH, "drive");
-    walk(serviceH, "service");
-
-    /*
-     * Upfront = fixed call out. If drive time exceeds 1 hour, add the drive
-     * time beyond that first hour (the call out already covers the first one).
-     */
-    var upfrontDrive = 0;
-    var excessHours = Math.max(0, driveH - 1);
-    if (excessHours > 1e-9) {
-      var ed = new Date(start.getTime() + 1 * 3600000);
-      var rem = excessHours;
-      while (rem > 1e-9) {
-        var edt = Math.min(stepH, rem);
-        upfrontDrive += (manual ? fixed : rateAtDate(ed)) * edt;
-        ed = new Date(ed.getTime() + edt * 3600000);
-        rem -= edt;
-      }
-    }
+    /* Upfront = call out + drive time beyond the first hour. */
+    var upfrontDrive = Math.max(0, driveH - 1) * rate;
 
     return {
-      cost: cost,
-      segments: segments,
-      additionalRate: manual ? fixed : rateAtDate(d),
+      rate: rate,
       manual: manual,
-      startRate: startRate,
       upfrontDrive: upfrontDrive,
-      end: d
+      cost: {
+        callout: rate,
+        drive: driveH * rate,
+        service: serviceH * rate
+      }
     };
   }
 
@@ -515,17 +469,7 @@
 
     var labor = calloutCost + driveCost + serviceCost;
 
-    if (laborInfo.segments.length > 1) {
-      var segs = laborInfo.segments.map(function (s) {
-        return money(s.rate) + " × " + fmtQty(s.hours) + "h";
-      });
-      el.splitValue.textContent = segs.join("  +  ");
-      el.splitRow.hidden = false;
-    } else {
-      el.splitRow.hidden = true;
-    }
-
-    var rate = laborInfo.additionalRate;
+    var rate = laborInfo.rate;
 
     var parts = readParts();
 
