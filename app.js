@@ -31,6 +31,7 @@
     total: $("total"),
     addHour: $("addHour"),
     upfront: $("upfront"),
+    eta: $("eta"),
     quote: $("quote"),
     copy: $("copy"),
     authCompany: $("authCompany"),
@@ -495,6 +496,7 @@
     var otherNote = rate === REG_RATE
       ? "after 6pm and before 9am: " + moneyInt(otherRate) + "/hr"
       : "Mon-Fri 9am-6pm: " + moneyInt(otherRate) + "/hr";
+    var eta = el.eta.value.trim() || "____";
 
     el.quote.value =
       "Estimated total: " + moneyInt(estimate) + " — " + coversClause + "\n" +
@@ -507,6 +509,7 @@
       "- Card or debit adds a " + feeRate +
       "% transaction fee (Zelle, COM Check, EFS or cash: no fee).\n" +
       "- If you cancel after confirming, the call out is non-refundable.\n\n" +
+      "Estimated arrival time (ETA): " + eta + "\n\n" +
       "If you want to proceed please provide:\n" +
       "1. Your name\n" +
       "2. Company name for the invoice\n" +
@@ -540,7 +543,7 @@
   el.authDate.value = toLocalInput(new Date()).slice(0, 10);
 
   ["when", "rateMode", "holiday", "drive", "service",
-   "feeOn", "feeRate", "taxOn", "taxRate",
+   "feeOn", "feeRate", "taxOn", "taxRate", "eta",
    "authCompany", "authInvoice", "authService", "authDate"].forEach(function (key) {
     el[key].addEventListener("input", update);
     el[key].addEventListener("change", update);
