@@ -487,7 +487,7 @@
     el.addHour.textContent = money(rate) + "/h";
     el.upfront.textContent = money(upfront);
 
-    var estimate = total - fee; /* labor + parts + taxes, without the card fee */
+    var estimate = total; /* labor + parts + taxes + transaction fee */
     var coversClause =
       parts.count > 0
         ? "covers call out, drive time, the first hour of service and parts."
@@ -506,7 +506,6 @@
       "* Call out: " + moneyInt(calloutCost) +
       " collected before the tech leaves — part of the " + moneyInt(estimate) +
       ", not added on top.\n" +
-      "* Card/debit adds " + feeRate + "%. Zelle, COM Check, EFS or cash: no fee.\n" +
       "* Cancelling after confirming: call out is non-refundable\n\n" +
       "Estimated arrival time (ETA): " + eta + "\n\n" +
       "If you want to proceed please provide:\n" +
