@@ -493,22 +493,21 @@
         ? "covers call out, drive time, the first hour of service and parts."
         : "covers call out, drive time and the first hour of service (no parts included).";
     var otherRate = rate === REG_RATE ? AFT_RATE : REG_RATE;
-    var otherNote = rate === REG_RATE
-      ? "after 6pm and before 9am: " + moneyInt(otherRate) + "/hr"
-      : "Mon-Fri 9am-6pm: " + moneyInt(otherRate) + "/hr";
+    var otherWhen = rate === REG_RATE
+      ? "after 6 pm, before 9 am, weekends, holidays"
+      : "Mon-Fri 9am-6pm";
+    var otherNote = moneyInt(otherRate) + "/hr " + otherWhen;
     var eta = el.eta.value.trim() || "____";
 
     el.quote.value =
       "Estimated total: " + moneyInt(estimate) + " — " + coversClause + "\n" +
-      "- Additional time beyond the first hour: " + moneyInt(rate) +
-      "/hr (" + otherNote + "). I'll call you for approval before any extra time or parts are added.\n" +
-      "- Call out: " + moneyInt(calloutCost) +
-      " collected before the tech leaves — it's part of the " + moneyInt(estimate) +
-      ", not on top of it. Remaining balance at the end: " +
-      moneyInt(estimate - calloutCost) + ".\n" +
-      "- Card or debit adds a " + feeRate +
-      "% transaction fee (Zelle, COM Check, EFS or cash: no fee).\n" +
-      "- If you cancel after confirming, the call out is non-refundable.\n\n" +
+      "* Extra time after the first hour: " + moneyInt(rate) + "/hr (" + otherNote +
+      "). You approve any extra time or parts before we add them.\n" +
+      "* Call out: " + moneyInt(calloutCost) +
+      " collected before the tech leaves — part of the " + moneyInt(estimate) +
+      ", not added on top.\n" +
+      "* Card/debit adds " + feeRate + "%. Zelle, COM Check, EFS or cash: no fee.\n" +
+      "* Cancelling after confirming: call out is non-refundable\n\n" +
       "Estimated arrival time (ETA): " + eta + "\n\n" +
       "If you want to proceed please provide:\n" +
       "1. Your name\n" +
